@@ -1,0 +1,20 @@
+{
+    "name": "TIFF to PNG Converter",
+    "short_name": "TIFF2PNG",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#00104A",
+    "icons": [
+        {
+            "src": "icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

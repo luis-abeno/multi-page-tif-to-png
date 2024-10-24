@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Convert Multi-Page TIFF to PNG</title>
+
+    <link rel="manifest" href="manifest.json" />
+  </head>
+  <body>
+    <input type="file" id="tiffInput" accept=".tif, .tiff" />
+    <div id="output"></div>
+
+    <script src="tiff.min.js"></script>
+
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("service-worker.js")
+          .then(function (registration) {
+            console.log("Service Worker registered with scope:", registration.scope);
+          })
+          .catch(function (error) {
+            console.error("Service Worker registration failed:", error);
+          });
+      }
+
+      performance.mark("start-conversion");
+
+      document.getElementById("tiffInput").addEventListener("change", function (event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+
+          reader.onload = function (e) {
+            const buffer = e.target.result;
+            const tiff = new Tiff({ buffer });
+
+            let convertedDir = "converted";
+            if (!document.getElementById(convertedDir)) {
+              const convertedDiv = document.createElement("div");
+              convertedDiv.id = convertedDir;
+              document.body.appendChild(convertedDiv);
+            }
+
+            for (let i = 0; i < tiff.countDirectory(); i++) {
+              tiff.setDirectory(i);
+              const canvas = tiff.toCanvas();
+
+              canvas.toBlob(function (blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `converted/page-${i + 1}.png`;
+                a.textContent = `Download Page ${i + 1}`;
+                a.style.display = "block";
+                document.getElementById("converted").appendChild(a);
+              }, "image/png");
+            }
+
+            performance.mark("end-conversion");
+            performance.measure("TIFF to PNG Conversion", "start-conversion", "end-conversion");
+
+            const measure = performance.getEntriesByName("TIFF to PNG Conversion")[0];
+            console.log(measure);
+            console.log(
+              `Custom measure for TIFF to PNG conversion: ${measure.duration / 1000} seconds`
+            );
+          };
+
+          reader.readAsArrayBuffer(file);
+        }
+      });
+    </script>
+  </body>
+</html>
