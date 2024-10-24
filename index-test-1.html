@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TIFF to PNG Converter</title>
+    <link rel="manifest" href="manifest.json" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        padding: 20px;
+        background-color: #f4f4f4;
+      }
+
+      h1 {
+        text-align: center;
+        color: #00104a;
+      }
+
+      input {
+        margin: 10px 0;
+        padding: 10px;
+        width: calc(100% - 22px);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      button {
+        padding: 10px 15px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        background-color: #00104a;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #00205c;
+      }
+
+      .flex {
+        display: flex;
+        justify-content: center;
+      }
+
+      #output {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      canvas {
+        border: 1px solid #ccc;
+        margin: 10px;
+      }
+
+      /* Loader Styles */
+      #loader {
+        display: none; /* Hidden by default */
+        position: fixed; /* Stay in place */
+        left: 0;
+        top: 0;
+        width: 100%; /* Full width */
+        height: 100%; /* Full height */
+        background-color: rgba(255, 255, 255, 0.8); /* White background with some transparency */
+        z-index: 999; /* Sit on top */
+        justify-content: center; /* Center the loader */
+        align-items: center; /* Center the loader */
+      }
+
+      .spinner {
+        border: 16px solid #f3f3f3; /* Light grey */
+        border-top: 16px solid #00104a; /* Blue */
+        border-radius: 50%;
+        width: 60px; /* Size of the spinner */
+        height: 60px; /* Size of the spinner */
+        animation: spin 2s linear infinite; /* Animation */
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>TIFF to PNG Converter</h1>
+    <input type="file" id="tiffFile" accept=".tif,.tiff" />
+    <input type="text" placeholder="Page to convert" id="pageToConvert" />
+
+    <div class="flex">
+      <button id="convertButton">Convert and Show Page</button>
+      <button id="goPrevPage" disabled>Prev</button>
+      <button id="goNextPage" disabled>Next</button>
+    </div>
+
+    <div id="output"></div>
+
+    <!-- Loader -->
+    <div id="loader" class="flex">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Include tiff.min.js -->
+    <script src="utif.js"></script>
+    <!-- Include utif.js -->
+    <script>
+      let tiffData; // Array to hold decoded TIFF pages
+      let currentPage = 0;
+      let buffer; // Declare the buffer variable to hold ArrayBuffer
+
+      document.getElementById("tiffFile").addEventListener("change", function (event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+
+          reader.onloadstart = function () {
+            // Show the loader when the loading starts
+            document.getElementById("loader").style.display = "flex";
+          };
+
+          reader.onload = function (e) {
+            buffer = e.target.result; // Store the ArrayBuffer in the buffer variable
+            tiffData = UTIF.decode(buffer); // Decode the TIFF file into IFDs
+
+            // Decode each IFD
+            for (let i = 0; i < tiffData.length; i++) {
+              UTIF.decodeImage(buffer, tiffData[i]); // Decode the image data for each IFD
+            }
+
+            // Hide the loader when loading is done
+            document.getElementById("loader").style.display = "none";
+
+            // Enable the navigation buttons
+            document.getElementById("goNextPage").disabled = tiffData.length <= 1;
+            document.getElementById("goPrevPage").disabled = currentPage <= 0;
+          };
+
+          reader.onloadend = function () {
+            // Hide the loader if loading is completed
+            document.getElementById("loader").style.display = "none";
+          };
+
+          reader.readAsArrayBuffer(file);
+        }
+      });
+
+      document.getElementById("convertButton").addEventListener("click", function () {
+        const pageInput = document.getElementById("pageToConvert").value;
+        const pageToConvert = parseInt(pageInput) - 1; // Convert to 0-based index
+
+        if (!isNaN(pageToConvert) && pageToConvert >= 0 && tiffData) {
+          currentPage = pageToConvert;
+          displayPage(currentPage);
+        } else {
+          alert("Please enter a valid page number.");
+        }
+      });
+
+      document.getElementById("goNextPage").addEventListener("click", function () {
+        const pageCount = tiffData.length;
+        if (currentPage < pageCount - 1) {
+          currentPage++;
+          displayPage(currentPage);
+        }
+      });
+
+      document.getElementById("goPrevPage").addEventListener("click", function () {
+        if (currentPage > 0) {
+          currentPage--;
+          displayPage(currentPage);
+        }
+      });
+
+      function displayPage(page) {
+        const tiffPage = tiffData[page]; // Get the current TIFF page
+
+        // Extract width and height from the TIFF tags
+        const width = tiffPage.t256[0]; // Tag 256 is Width
+        const height = tiffPage.t257[0]; // Tag 257 is Height
+
+        // Check if dimensions are valid
+        if (typeof width !== "number" || width <= 0 || typeof height !== "number" || height <= 0) {
+          alert("Invalid image dimensions.");
+          return;
+        }
+
+        const rgba = UTIF.toRGBA8(tiffPage); // Get the RGBA data
+
+        // Log the RGBA data and dimensions
+        console.log("Width:", width, "Height:", height);
+        console.log("RGBA Data Length:", rgba.length);
+
+        // Ensure the RGBA data length matches expected size
+        if (rgba.length === 0) {
+          alert("Failed to extract pixel data. Please check the TIFF file.");
+          return;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width; // Set width
+        canvas.height = height; // Set height
+        const ctx = canvas.getContext("2d");
+
+        // Create image data and ensure the data length matches the expected size
+        const imageData = ctx.createImageData(width, height);
+        imageData.data.set(rgba); // Set RGBA data to imageData
+        ctx.putImageData(imageData, 0, 0);
+
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerHTML = ""; // Clear previous content
+        outputDiv.appendChild(canvas);
+
+        // Update navigation button states
+        document.getElementById("goNextPage").disabled = currentPage >= tiffData.length - 1;
+        document.getElementById("goPrevPage").disabled = currentPage <= 0;
+
+        // Update page input to reflect current page
+        document.getElementById("pageToConvert").value = currentPage + 1;
+      }
+    </script>
+  </body>
+</html>

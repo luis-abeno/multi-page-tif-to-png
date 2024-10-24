@@ -3,74 +3,139 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Convert Multi-Page TIFF to PNG</title>
-
+    <title>TIFF to PNG Converter</title>
     <link rel="manifest" href="manifest.json" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        padding: 20px;
+        background-color: #f4f4f4;
+      }
+
+      h1 {
+        text-align: center;
+        color: #00104a;
+      }
+
+      input {
+        margin: 10px 0;
+        padding: 10px;
+        width: calc(100% - 22px);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      button {
+        padding: 10px 15px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        background-color: #00104a;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #00205c;
+      }
+
+      .flex {
+        display: flex;
+        justify-content: center;
+      }
+
+      #output {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      canvas {
+        border: 1px solid #ccc;
+        margin: 10px;
+      }
+    </style>
   </head>
   <body>
-    <input type="file" id="tiffInput" accept=".tif, .tiff" />
+    <h1>TIFF to PNG Converter</h1>
+    <input type="file" id="tiffFile" accept=".tif,.tiff" />
+    <input type="text" placeholder="Page to convert" id="pageToConvert" />
+
+    <div class="flex">
+      <button id="convertButton">Convert and Show Page</button>
+      <button id="goPrevPage" disabled>Prev</button>
+      <button id="goNextPage" disabled>Next</button>
+    </div>
+
     <div id="output"></div>
 
     <script src="tiff.min.js"></script>
-
     <script>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-          .register("service-worker.js")
-          .then(function (registration) {
-            console.log("Service Worker registered with scope:", registration.scope);
-          })
-          .catch(function (error) {
-            console.error("Service Worker registration failed:", error);
-          });
-      }
+      let tiff;
+      let currentPage = 0;
 
-      performance.mark("start-conversion");
-
-      document.getElementById("tiffInput").addEventListener("change", function (event) {
+      document.getElementById("tiffFile").addEventListener("change", function (event) {
         const file = event.target.files[0];
         if (file) {
           const reader = new FileReader();
 
           reader.onload = function (e) {
             const buffer = e.target.result;
-            const tiff = new Tiff({ buffer });
+            tiff = new Tiff({ buffer });
 
-            let convertedDir = "converted";
-            if (!document.getElementById(convertedDir)) {
-              const convertedDiv = document.createElement("div");
-              convertedDiv.id = convertedDir;
-              document.body.appendChild(convertedDiv);
-            }
-
-            for (let i = 0; i < tiff.countDirectory(); i++) {
-              tiff.setDirectory(i);
-              const canvas = tiff.toCanvas();
-
-              canvas.toBlob(function (blob) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `converted/page-${i + 1}.png`;
-                a.textContent = `Download Page ${i + 1}`;
-                a.style.display = "block";
-                document.getElementById("converted").appendChild(a);
-              }, "image/png");
-            }
-
-            performance.mark("end-conversion");
-            performance.measure("TIFF to PNG Conversion", "start-conversion", "end-conversion");
-
-            const measure = performance.getEntriesByName("TIFF to PNG Conversion")[0];
-            console.log(measure);
-            console.log(
-              `Custom measure for TIFF to PNG conversion: ${measure.duration / 1000} seconds`
-            );
+            // Enable the navigation buttons
+            const pageCount = tiff.countDirectory();
+            document.getElementById("goNextPage").disabled = currentPage >= pageCount - 1;
+            document.getElementById("goPrevPage").disabled = currentPage <= 0;
           };
 
           reader.readAsArrayBuffer(file);
         }
       });
+
+      document.getElementById("convertButton").addEventListener("click", function () {
+        const pageInput = document.getElementById("pageToConvert").value;
+        const pageToConvert = parseInt(pageInput) - 1; // Convert to 0-based index
+
+        if (!isNaN(pageToConvert) && pageToConvert >= 0 && tiff) {
+          currentPage = pageToConvert;
+          displayPage(currentPage);
+        } else {
+          alert("Please enter a valid page number.");
+        }
+      });
+
+      document.getElementById("goNextPage").addEventListener("click", function () {
+        const pageCount = tiff.countDirectory();
+        if (currentPage < pageCount - 1) {
+          currentPage++;
+          displayPage(currentPage);
+        }
+      });
+
+      document.getElementById("goPrevPage").addEventListener("click", function () {
+        if (currentPage > 0) {
+          currentPage--;
+          displayPage(currentPage);
+        }
+      });
+
+      function displayPage(page) {
+        tiff.setDirectory(page);
+        const canvas = tiff.toCanvas();
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerHTML = ""; // Clear previous content
+        outputDiv.appendChild(canvas);
+
+        // Update navigation button states
+        const pageCount = tiff.countDirectory();
+        document.getElementById("goNextPage").disabled = currentPage >= pageCount - 1;
+        document.getElementById("goPrevPage").disabled = currentPage <= 0;
+
+        // Update page input to reflect current page
+        document.getElementById("pageToConvert").value = currentPage + 1;
+      }
     </script>
   </body>
 </html>

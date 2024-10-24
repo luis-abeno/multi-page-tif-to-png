@@ -16,16 +16,22 @@ async function convertMultiPageTiffToPng(inputFile, outputDir) {
     const image = sharp(tiffBuffer);
     const metadata = await image.metadata();
 
-    // Loop through each page in the TIFF file
+    // Process each page in parallel
+    const pagePromises = [];
     for (let i = 0; i < metadata.pages; i++) {
-      // Extract and convert each page to PNG by specifying the page index
-      const pngBuffer = await sharp(tiffBuffer, { page: i }).png().toBuffer();
-
-      // Save the PNG file for each page
-      const outputFilePath = path.join(outputDir, `${i + 1}.png`);
-      fs.writeFileSync(outputFilePath, pngBuffer);
-      console.log(`Page ${i + 1} converted successfully`);
+      pagePromises.push(
+        sharp(tiffBuffer, { page: i })
+          .png()
+          .toBuffer()
+          .then((pngBuffer) => {
+            const outputFilePath = path.join(outputDir, `${i + 1}.png`);
+            fs.writeFileSync(outputFilePath, pngBuffer);
+            console.log(`Page ${i + 1} converted successfully`);
+          })
+      );
     }
+
+    await Promise.all(pagePromises);
 
     console.timeEnd("Conversion Time");
   } catch (err) {
